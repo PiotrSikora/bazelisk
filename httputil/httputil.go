@@ -44,6 +44,7 @@ var (
 
 	//go:embed bazel-release.pub.gpg
 	VerificationKey []byte
+	VerificationKeyURL = "https://bazel.build/bazel-release.pub.gpg"
 )
 
 // Clock keeps track of time. It can return the current time, as well as move forward by sleeping for a certain period.
@@ -279,6 +280,27 @@ func DownloadBinary(originURL, destDir, destFile string, config config.Config, v
 
 			entity, err := openpgp.CheckDetachedSignature(keys, tmpfile, signature.Body)
 			if err != nil {
+				// Signature doesn't match, check if the embedded key is up-to-date.
+				key, keyErr := get(VerificationKeyURL, "")
+				if keyErr != nil {
+					return "", fmt.Errorf("HTTP GET %s failed: %v", VerificationKeyURL, keyErr)
+				}
+				defer key.Body.Close()
+
+				if key.StatusCode != 200 {
+					return "", fmt.Errorf("HTTP GET %s failed with error %v", VerificationKeyURL, key.StatusCode)
+				}
+
+				body, bodyErr := io.ReadAll(key.Body)
+				if bodyErr != nil {
+					return "", fmt.Errorf("HTTP GET %s failed to read response body: %v", VerificationKeyURL, bodyErr)
+				}
+
+				if bytes.Compare(body, VerificationKey) != 0 {
+					return "", errors.New("embedded key is outdated, please update Bazelisk")
+				}
+
+				// The embedded key matches downloaded one, so something is wrong with the downloaded binary.
 				return "", fmt.Errorf("failed to verify the downloaded file using signature from %s", signatureURL)
 			}
 
