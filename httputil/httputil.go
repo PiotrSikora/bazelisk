@@ -7,7 +7,6 @@ import (
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/openpgp"
 	"io"
 	"log"
 	"math/rand"
@@ -22,6 +21,8 @@ import (
 	netrc "github.com/bgentry/go-netrc/netrc"
 	homedir "github.com/mitchellh/go-homedir"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/bazelbuild/bazelisk/config"
 	"github.com/bazelbuild/bazelisk/httputil/progress"
 )
@@ -277,7 +278,8 @@ func DownloadBinary(originURL, destDir, destFile string, config config.Config, v
 
 			tmpfile.Seek(0, io.SeekStart)
 
-			entity, err := openpgp.CheckDetachedSignature(keys, tmpfile, signature.Body)
+			pgpconfig := &packet.Config{}
+			entity, err := openpgp.CheckDetachedSignature(keys, tmpfile, signature.Body, pgpconfig)
 			if err != nil {
 				return "", fmt.Errorf("failed to verify the downloaded file using signature from %s", signatureURL)
 			}
